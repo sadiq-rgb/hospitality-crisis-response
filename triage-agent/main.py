@@ -31,7 +31,6 @@ Given this incident report, produce a JSON action plan:
   "estimated_response_time_minutes": integer
 }
 P1 = life threatening, P2 = serious but stable, P3 = minor.
-Base your response on standard hospitality emergency SOPs.
 Return ONLY the JSON object. No extra text. No markdown."""
 
 @app.route("/health", methods=["GET"])
@@ -39,14 +38,12 @@ def health():
     return jsonify({
         "status": "ok",
         "model": MODEL_NAME,
-        "location": LOCATION,
-        "project": PROJECT_ID
+        "version": "v2-with-alerts"
     }), 200
 
 @app.route("/", methods=["POST"])
 def triage():
     envelope = request.get_json()
-
     if not envelope or "message" not in envelope:
         return jsonify({"error": "Invalid Pub/Sub message"}), 400
 
@@ -54,18 +51,16 @@ def triage():
     raw = base64.b64decode(pubsub_message.get("data", "")).decode("utf-8")
     incident = json.loads(raw)
 
-    print(f"Received: {incident.get('incident_type')} - {incident.get('severity')}")
+    print(f"TRIAGE RECEIVED: {incident.get('incident_type')} {incident.get('severity')}")
 
     try:
-        gemini_input = f"Incident report: {json.dumps(incident)}"
-        response = model.generate_content([TRIAGE_PROMPT, gemini_input])
+        response = model.generate_content([
+            TRIAGE_PROMPT,
+            f"Incident report: {json.dumps(incident)}"
+        ])
         raw_text = response.text.strip()
         raw_text = raw_text.replace("```json", "").replace("```", "").strip()
         triage_plan = json.loads(raw_text)
-
-    except json.JSONDecodeError as e:
-        print(f"JSON parse error: {e}")
-        return jsonify({"error": "Gemini returned invalid JSON"}), 500
     except Exception as e:
         print(f"Gemini error: {e}")
         return jsonify({"error": str(e)}), 500
@@ -76,38 +71,41 @@ def triage():
     triage_plan["triage_timestamp"] = datetime.utcnow().isoformat()
     triage_plan["status"] = "active"
 
-    print(f"Triage complete: {incident_id} - {triage_plan['priority']}")
+    print(f"TRIAGE COMPLETE: {incident_id} priority={triage_plan['priority']}")
 
     try:
         db.collection("incidents").document(incident_id).set(triage_plan)
-        print(f"Saved to Firestore: {incident_id}")
+        print(f"FIRESTORE SAVED: {incident_id}")
     except Exception as e:
-        print(f"Firestore error: {e}")
-        return jsonify({"error": f"Firestore failed: {str(e)}"}), 500
+        print(f"FIRESTORE ERROR: {e}")
+        return jsonify({"error": str(e)}), 500
 
-    # Publish to downstream agents
     try:
         for topic_name in ["triage-output", "response-tasks"]:
             topic_path = publisher.topic_path(PROJECT_ID, topic_name)
             publisher.publish(topic_path, json.dumps(triage_plan).encode("utf-8"))
-            print(f"Published to {topic_name}")
+            print(f"PUBLISHED TO: {topic_name}")
     except Exception as e:
-        print(f"Pub/Sub error: {e}")
+        print(f"PUBSUB ERROR: {e}")
 
-    # Auto-alert authorities for P1 and P2 incidents
-    if triage_plan.get("priority") in ["P1", "P2"]:
+    # Alert authorities for P1 and P2 only
+    priority = triage_plan.get("priority")
+    if priority in ["P1", "P2"]:
         try:
-            alert_topic = publisher.topic_path(PROJECT_ID, "emergency-alerts")
-            publisher.publish(alert_topic, json.dumps(triage_plan).encode("utf-8"))
-            print(f"Emergency alert triggered for {triage_plan['priority']} incident")
+            alert_path = publisher.topic_path(PROJECT_ID, "emergency-alerts")
+            publisher.publish(alert_path, json.dumps(triage_plan).encode("utf-8"))
+            print(f"EMERGENCY ALERT PUBLISHED: {priority} incident {incident_id}")
         except Exception as e:
-            print(f"Alert publish error: {e}")
+            print(f"ALERT ERROR: {e}")
+    else:
+        print(f"P3 INCIDENT: no authority alert needed")
 
     return jsonify({
         "status": "triaged",
         "incident_id": incident_id,
-        "priority": triage_plan["priority"],
-        "evacuation_required": triage_plan["evacuation_required"]
+        "priority": priority,
+        "evacuation_required": triage_plan.get("evacuation_required"),
+        "authorities_alerted": priority in ["P1", "P2"]
     }), 200
 
 if __name__ == "__main__":
