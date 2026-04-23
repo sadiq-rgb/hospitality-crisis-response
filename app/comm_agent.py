@@ -304,7 +304,8 @@ with st.sidebar:
     st.markdown("---")
 
     st.markdown("**Triage JSON Input**")
-    raw_json = st.text_area("", value=DEFAULT_JSON, height=230,
+    incoming_triage = st.session_state.get("shared_triage_json", DEFAULT_JSON)
+    raw_json = st.text_area("", value=incoming_triage, height=230,
                              label_visibility="collapsed")
     dispatch_btn = st.button("⚡ DISPATCH")
 

@@ -446,13 +446,13 @@ st.markdown("Paste a completed **or incomplete** incident JSON from the Intake A
 st.markdown("---")
 
 input_col, output_col = st.columns([2, 3], gap="large")
-
+incoming_data = st.session_state.get("shared_incident_json", SAMPLE_INCIDENT)
 # ── LEFT: Input ──
 with input_col:
     st.markdown("### 📥 Incident JSON Input")
     incident_json = st.text_area(
         "Paste incident JSON",
-        value=SAMPLE_INCIDENT,
+        value=incoming_data,
         height=420,
         label_visibility="collapsed",
         disabled=not api_key,
@@ -527,6 +527,11 @@ with input_col:
             file_name=f"triage_{tid}.json",
             mime="application/json",
         )
+
+        st.session_state.shared_triage_json = json.dumps(st.session_state.triage_result, indent=2)
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("➡️ Approve & Send to Comms Agent", use_container_width=True):
+            st.switch_page("comm_agent.py")
 
 # ── RIGHT: Output ──
 with output_col:

@@ -371,6 +371,8 @@ with chat_col:
                 is_question = False
                 st.session_state.completed = True
                 st.session_state.log.append(response)
+
+                st.session_state.shared_incident_json = json.dumps(response, indent=2)
             else:
                 agent_text  = response.get("question", "Can you provide more details?")
                 is_question = True
@@ -386,6 +388,9 @@ with chat_col:
                 file_name=f"incident_{st.session_state.incident_id[:8]}.json",
                 mime="application/json",
             )
+
+            if st.button("➡️ Proceed to Triage Agent", use_container_width=True):
+                st.switch_page("triage_agent.py")
 
 # ══ RIGHT: Live JSON ══
 with json_col:
