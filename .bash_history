@@ -498,3 +498,12 @@ curl -X POST $CALLING_URL/analyze-call   -H "Content-Type: application/json"   -
     "transcript": "FIRE! Smoke and flames in Room 412 fourth floor. Guests trapped in corridor. Emergency!",
     "timestamp": "2026-04-23T10:30:00Z"
   }'
+git add . 
+git commit -m "alert agent added - pls link it"
+git push origin main
+git push origin main --force
+# Remove the credentials file from the git index
+git rm --cached .git-credentials
+# Add it to .gitignore so it never gets added again
+echo ".git-credentials" >> .gitignore
+echo ".env" >> .gitignore
