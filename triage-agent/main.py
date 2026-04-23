@@ -85,6 +85,7 @@ def triage():
         print(f"Firestore error: {e}")
         return jsonify({"error": f"Firestore failed: {str(e)}"}), 500
 
+    # Publish to downstream agents
     try:
         for topic_name in ["triage-output", "response-tasks"]:
             topic_path = publisher.topic_path(PROJECT_ID, topic_name)
@@ -92,6 +93,15 @@ def triage():
             print(f"Published to {topic_name}")
     except Exception as e:
         print(f"Pub/Sub error: {e}")
+
+    # Auto-alert authorities for P1 and P2 incidents
+    if triage_plan.get("priority") in ["P1", "P2"]:
+        try:
+            alert_topic = publisher.topic_path(PROJECT_ID, "emergency-alerts")
+            publisher.publish(alert_topic, json.dumps(triage_plan).encode("utf-8"))
+            print(f"Emergency alert triggered for {triage_plan['priority']} incident")
+        except Exception as e:
+            print(f"Alert publish error: {e}")
 
     return jsonify({
         "status": "triaged",
