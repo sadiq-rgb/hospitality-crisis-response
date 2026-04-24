@@ -1,13 +1,9 @@
 import json
 import uuid
 from datetime import datetime, timezone
-import os
 
 import streamlit as st
 import google.generativeai as genai
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # ─── Page Config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -277,11 +273,10 @@ init_state()
 with st.sidebar:
     st.markdown("## 🚨 Crisis Intake")
     st.markdown("---")
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if api_key:
-        st.success("Gemini API key loaded from .env")
-    else:
-        st.warning("Set GEMINI_API_KEY in .env to begin.")
+    api_key = st.text_input("Gemini API Key", type="password",
+                             placeholder="AIza…", key="api_key_input")
+    if not api_key:
+        st.warning("Enter your Gemini API key to begin.")
 
     st.markdown("---")
     st.markdown("### 📊 Field Progress")
@@ -376,8 +371,6 @@ with chat_col:
                 is_question = False
                 st.session_state.completed = True
                 st.session_state.log.append(response)
-
-                st.session_state.shared_incident_json = json.dumps(response, indent=2)
             else:
                 agent_text  = response.get("question", "Can you provide more details?")
                 is_question = True
@@ -393,9 +386,6 @@ with chat_col:
                 file_name=f"incident_{st.session_state.incident_id[:8]}.json",
                 mime="application/json",
             )
-
-            if st.button("➡️ Proceed to Triage Agent", use_container_width=True):
-                st.switch_page("triage_agent.py")
 
 # ══ RIGHT: Live JSON ══
 with json_col:
