@@ -1,13 +1,10 @@
 import json
 import uuid
 from datetime import datetime, timezone
-import os
 
 import streamlit as st
 import google.generativeai as genai
-from dotenv import load_dotenv
-
-load_dotenv()
+import streamlit.components.v1 as components
 
 # ─── Page Config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -23,66 +20,41 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@400;500;600;700&display=swap');
 
 html, body, [class*="css"] { font-family: 'Barlow', sans-serif; }
-
 .stApp { background: #080d18; color: #dde6f5; }
-
 section[data-testid="stSidebar"] {
     background: #0c1220 !important;
     border-right: 1px solid #1a2d4a;
 }
-
 h1, h2, h3 {
     font-family: 'Share Tech Mono', monospace !important;
     color: #ff4040 !important;
     letter-spacing: 0.06em;
 }
-
 .user-bubble {
-    background: #131e35;
-    border-left: 3px solid #3a7bd5;
-    padding: 10px 15px;
-    border-radius: 3px 10px 10px 3px;
-    margin: 7px 0;
-    font-size: 0.94rem;
-    color: #b8cfe8;
+    background: #131e35; border-left: 3px solid #3a7bd5;
+    padding: 10px 15px; border-radius: 3px 10px 10px 3px;
+    margin: 7px 0; font-size: 0.94rem; color: #b8cfe8;
 }
 .agent-bubble {
-    background: #0f1828;
-    border-left: 3px solid #ff4040;
-    padding: 10px 15px;
-    border-radius: 3px 10px 10px 3px;
-    margin: 7px 0;
-    font-size: 0.94rem;
-    color: #dde6f5;
+    background: #0f1828; border-left: 3px solid #ff4040;
+    padding: 10px 15px; border-radius: 3px 10px 10px 3px;
+    margin: 7px 0; font-size: 0.94rem; color: #dde6f5;
 }
 .agent-question {
-    background: #0e1f10;
-    border-left: 3px solid #4caf50;
-    padding: 10px 15px;
-    border-radius: 3px 10px 10px 3px;
-    margin: 7px 0;
-    font-size: 0.97rem;
-    color: #7ed47e;
-    font-weight: 600;
+    background: #0e1f10; border-left: 3px solid #4caf50;
+    padding: 10px 15px; border-radius: 3px 10px 10px 3px;
+    margin: 7px 0; font-size: 0.97rem; color: #7ed47e; font-weight: 600;
 }
 .complete-banner {
     background: linear-gradient(135deg, #0b2e18, #07180d);
-    border: 1px solid #2ecc71;
-    border-radius: 8px;
-    padding: 14px 18px;
-    color: #2ecc71;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 1rem;
-    margin: 12px 0;
-    text-align: center;
-    letter-spacing: 0.05em;
+    border: 1px solid #2ecc71; border-radius: 8px;
+    padding: 14px 18px; color: #2ecc71;
+    font-family: 'Share Tech Mono', monospace; font-size: 1rem;
+    margin: 12px 0; text-align: center; letter-spacing: 0.05em;
 }
 .field-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 3px 0;
-    font-size: 0.82rem;
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 3px 0; font-size: 0.82rem;
     font-family: 'Share Tech Mono', monospace;
 }
 .field-label { color: #5580aa; min-width: 135px; }
@@ -94,29 +66,20 @@ h1, h2, h3 {
 .sev-high     { color: #ff8c00 !important; font-weight: 700; }
 .sev-medium   { color: #ffd700 !important; font-weight: 600; }
 .sev-low      { color: #7cfc00 !important; }
-
 .stTextArea textarea {
-    background: #0e1828 !important;
-    color: #dde6f5 !important;
-    border: 1px solid #1a2d4a !important;
-    border-radius: 6px;
-    font-family: 'Barlow', sans-serif !important;
-    font-size: 0.95rem !important;
+    background: #0e1828 !important; color: #dde6f5 !important;
+    border: 1px solid #1a2d4a !important; border-radius: 6px;
+    font-family: 'Barlow', sans-serif !important; font-size: 0.95rem !important;
 }
 .stTextInput > div > div > input {
-    background: #0e1828 !important;
-    color: #dde6f5 !important;
-    border: 1px solid #1a2d4a !important;
-    border-radius: 6px;
+    background: #0e1828 !important; color: #dde6f5 !important;
+    border: 1px solid #1a2d4a !important; border-radius: 6px;
 }
 .stButton > button {
-    background: #b81c1c !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 6px !important;
+    background: #b81c1c !important; color: white !important;
+    border: none !important; border-radius: 6px !important;
     font-family: 'Barlow', sans-serif !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.04em;
+    font-weight: 700 !important; letter-spacing: 0.04em;
 }
 .stButton > button:hover { background: #8a1212 !important; }
 </style>
@@ -168,7 +131,7 @@ If any of the above is still outstanding, status=incomplete and ask the next que
   "status": "incomplete | complete",
   "incident_id": "<UUID — same across all turns>",
   "reported_at": "<ISO 8601 UTC>",
-  "incident_type": "fire | flood | accident | medical | crime | infrastructure | other | null",
+  "incident_type": "fire | flood | accident / medical / crime / infrastructure / other | null",
   "severity": "low | medium | high | critical | null",
   "description": "<string or null>",
   "location": {
@@ -208,17 +171,30 @@ def parse_json(raw: str) -> dict:
 
 def call_gemini(api_key: str, gemini_history: list, new_message: str) -> dict:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        model_name="gemini-3.1-flash-lite-preview",
-        system_instruction=SYSTEM_PROMPT,
-    )
-    chat = model.start_chat(history=gemini_history)
-    response = chat.send_message(new_message)
-    return parse_json(response.text)
+    # Try modern model names in order, fall back gracefully
+    for model_name in [
+        "gemini-2.5-flash-preview-04-17",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-pro",
+    ]:
+        try:
+            model = genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=SYSTEM_PROMPT,
+            )
+            chat = model.start_chat(history=gemini_history)
+            response = chat.send_message(new_message)
+            return parse_json(response.text)
+        except Exception as e:
+            last_err = e
+            if "not found" in str(e).lower() or "404" in str(e):
+                continue
+            raise
+    raise last_err
 
 
 def frow(label: str, value) -> str:
-    """Render a single field status row."""
     has = value is not None and value != "" and value != [] and value is not False
     dot = '<span class="dot-ok">●</span>' if has else '<span class="dot-miss">○</span>'
     if has:
@@ -237,10 +213,16 @@ def render_field_progress(inc: dict):
     cas = inc.get("casualties") or {}
     rep = inc.get("reporter") or {}
     sev = inc.get("severity") or ""
-    sev_html = f'<span class="sev-{sev}">{sev.upper()}</span>' if sev else '<span class="field-null">not yet collected</span>'
+    sev_html = (
+        f'<span class="sev-{sev}">{sev.upper()}</span>'
+        if sev else '<span class="field-null">not yet collected</span>'
+    )
+    dot_sev = "●" if sev else "○"
+    cls_sev = "dot-ok" if sev else "dot-miss"
     rows = [
         frow("incident_type",  inc.get("incident_type")),
-        f'<div class="field-row">{"<span class=\'dot-ok\'>●</span>" if sev else "<span class=\'dot-miss\'>○</span>"}&nbsp;<span class="field-label">severity</span>{sev_html}</div>',
+        f'<div class="field-row"><span class="{cls_sev}">{dot_sev}</span>&nbsp;'
+        f'<span class="field-label">severity</span>{sev_html}</div>',
         frow("description",    inc.get("description")),
         frow("city",           loc.get("city")),
         frow("address",        loc.get("address")),
@@ -257,6 +239,164 @@ def render_field_progress(inc: dict):
     st.markdown("".join(rows), unsafe_allow_html=True)
 
 
+# ─── Web Speech API Component ─────────────────────────────────────────────────
+# Uses window.SpeechRecognition (built into Chrome, Edge, Safari 15+).
+# Zero cost, zero latency, genuinely live word-by-word output.
+# Pushes transcribed text into the hidden Streamlit bridge input via DOM
+# injection so the textarea updates on every Streamlit rerun.
+
+SPEECH_COMPONENT = """
+<div style="font-family:'Barlow',sans-serif;">
+
+  <div id="no-support" style="display:none; background:#2a1000; border:1px solid #cc6600;
+       border-radius:6px; padding:8px 12px; color:#ffaa55; margin-bottom:10px; font-size:12px;">
+    ⚠️ Web Speech API not available in this browser.
+    Please open in <strong>Chrome</strong>, <strong>Edge</strong>, or <strong>Safari 15+</strong>.
+  </div>
+
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+    <button id="micBtn" onclick="toggleMic()" style="
+        background:#b81c1c; color:#fff; border:none; border-radius:6px;
+        padding:9px 22px; font-size:14px; font-weight:700; cursor:pointer;
+        display:flex; align-items:center; gap:8px;
+    ">
+      <span id="micIcon" style="font-size:16px;">🎙</span>
+      <span id="micLabel">Start listening</span>
+    </button>
+
+    <button onclick="clearAll()" style="
+        background:#111d30; color:#6a9acf; border:1px solid #1e3a5a;
+        border-radius:6px; padding:9px 16px; font-size:13px;
+        font-weight:600; cursor:pointer;
+    ">Clear</button>
+
+    <span id="statusMsg" style="font-size:12px; color:#3a6a9a; font-family:'Share Tech Mono',monospace;"></span>
+  </div>
+
+  <div style="
+      background:#05101f; border:1px solid #132840;
+      border-radius:8px; padding:12px 16px;
+      min-height:60px; font-size:14px; line-height:1.8;
+      word-break:break-word; white-space:pre-wrap;
+  ">
+    <span id="finalSpan"   style="color:#a8d4f5;"></span><span
+          id="interimSpan" style="color:#2e5f8a; font-style:italic;"></span>
+    <span id="placeholder" style="color:#1e3d5e; font-style:italic;">
+      Transcription appears here as you speak…
+    </span>
+  </div>
+
+  <div style="margin-top:5px; font-size:11px; color:#1e3a5a;">
+    Confirmed words: bright blue &nbsp;·&nbsp; Still processing: grey italic
+  </div>
+
+</div>
+
+<script>
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) {
+  document.getElementById('no-support').style.display = 'block';
+  document.getElementById('micBtn').disabled = true;
+  document.getElementById('micBtn').style.background = '#333';
+}
+
+let rec = null, active = false, finalText = '';
+
+function setStatus(msg, color) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg; el.style.color = color || '#3a6a9a';
+}
+
+function updateDisplay(fin, interim) {
+  document.getElementById('finalSpan').textContent   = fin;
+  document.getElementById('interimSpan').textContent = interim;
+  document.getElementById('placeholder').style.display =
+    (fin || interim) ? 'none' : 'inline';
+}
+
+function pushToStreamlit(val) {
+  // Walk the parent document looking for the hidden bridge input
+  // identified by its placeholder attribute __STT_BRIDGE__
+  const all = window.parent.document.querySelectorAll('input');
+  for (const inp of all) {
+    if (inp.placeholder === '__STT_BRIDGE__') {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype, 'value').set;
+      setter.call(inp, val);
+      inp.dispatchEvent(new Event('input', {bubbles: true}));
+      return;
+    }
+  }
+}
+
+function clearAll() {
+  finalText = '';
+  updateDisplay('', '');
+  pushToStreamlit('');
+  setStatus('Cleared', '#3a6a9a');
+}
+
+function toggleMic() {
+  active ? stopRec() : startRec();
+}
+
+function startRec() {
+  if (!SR) return;
+  rec = new SR();
+  rec.continuous     = true;
+  rec.interimResults = true;
+  rec.lang           = 'en-IN';   // English (India) — change to 'en-US' if preferred
+
+  rec.onstart = () => {
+    active = true;
+    document.getElementById('micBtn').style.background = '#0d5c1a';
+    document.getElementById('micLabel').textContent    = 'Stop listening';
+    document.getElementById('micIcon').textContent     = '⏹';
+    setStatus('🔴 Listening…', '#ff4040');
+  };
+
+  rec.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText += t + ' ';
+      else interim += t;
+    }
+    updateDisplay(finalText, interim);
+    pushToStreamlit((finalText + interim).trim());
+  };
+
+  rec.onerror = (e) => {
+    setStatus('Mic error: ' + e.error, '#ff4040');
+    if (e.error === 'not-allowed') {
+      document.getElementById('no-support').style.display = 'block';
+      document.getElementById('no-support').textContent  =
+        '❌ Microphone permission denied. Please allow mic access and reload.';
+    }
+    stopRec();
+  };
+
+  rec.onend = () => {
+    // Auto-restart to keep continuous listening while active flag is true
+    if (active) { try { rec.start(); } catch(_) {} }
+  };
+
+  rec.start();
+}
+
+function stopRec() {
+  active = false;
+  if (rec) { try { rec.stop(); } catch(_) {} rec = null; }
+  document.getElementById('micBtn').style.background = '#b81c1c';
+  document.getElementById('micLabel').textContent    = 'Start listening';
+  document.getElementById('micIcon').textContent     = '🎙';
+  setStatus('✅ Done — text ready below', '#2ecc71');
+  pushToStreamlit(finalText.trim());
+}
+</script>
+"""
+
+
 # ─── Session State ────────────────────────────────────────────────────────────
 def init_state():
     defaults = {
@@ -266,6 +406,7 @@ def init_state():
         "incident_id":    str(uuid.uuid4()),
         "completed":      False,
         "log":            [],
+        "stt_text":       "",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -277,11 +418,10 @@ init_state()
 with st.sidebar:
     st.markdown("## 🚨 Crisis Intake")
     st.markdown("---")
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if api_key:
-        st.success("Gemini API key loaded from .env")
-    else:
-        st.warning("Set GEMINI_API_KEY in .env to begin.")
+    api_key = st.text_input("Gemini API Key", type="password",
+                             placeholder="AIza…", key="api_key_input")
+    if not api_key:
+        st.warning("Enter your Gemini API key to begin.")
 
     st.markdown("---")
     st.markdown("### 📊 Field Progress")
@@ -289,7 +429,7 @@ with st.sidebar:
 
     st.markdown("---")
     if st.button("🔄 New Incident", use_container_width=True):
-        for k in ["history", "gemini_history", "incident", "completed"]:
+        for k in ["history", "gemini_history", "incident", "completed", "stt_text"]:
             if k in st.session_state:
                 del st.session_state[k]
         st.session_state.incident_id = str(uuid.uuid4())
@@ -305,15 +445,17 @@ with st.sidebar:
             s = (logged.get("severity") or "?").upper()
             st.caption(f"[{t}] {c} — {s}")
 
-# ─── Main ─────────────────────────────────────────────────────────────────────
+# ─── Main Layout ──────────────────────────────────────────────────────────────
 st.markdown("# 🚨 Disaster Incident Intake Agent")
-st.markdown("Describe the emergency. The agent will collect all required details one step at a time.")
+st.markdown("Describe the emergency. The agent collects all required details one question at a time.")
 st.markdown("---")
 
 chat_col, json_col = st.columns([3, 2], gap="large")
 
-# ══ LEFT: Chat ══
+# ══ LEFT: Chat + Voice ══
 with chat_col:
+
+    # ── Conversation history ────────────────────────────────────────────────
     if not st.session_state.history:
         st.markdown("""
         <div class="agent-question">
@@ -338,23 +480,56 @@ with chat_col:
             '<div class="complete-banner">✅ INCIDENT REPORT COMPLETE — Dispatched to response teams.</div>',
             unsafe_allow_html=True)
 
-    # Input
+    # ── Input area ─────────────────────────────────────────────────────────
     if not st.session_state.completed:
         st.markdown("<br>", unsafe_allow_html=True)
-        user_input = st.text_area(
-            "msg",
-            placeholder="Describe the emergency here…",
-            label_visibility="collapsed",
-            key="user_input",
-            height=90,
-            disabled=not api_key,
-        )
-        send_col, _ = st.columns([1, 5])
-        with send_col:
-            send_btn = st.button("📡 Send", disabled=not api_key, use_container_width=True)
+        st.markdown("### 🎤 Live Voice Input")
+        st.caption("Built-in browser speech recognition — works in Chrome / Edge / Safari 15+. No API key required.")
 
-        if send_btn and user_input and api_key:
-            user_text = user_input.strip()
+        # Render voice widget inside iframe
+        components.html(SPEECH_COMPONENT, height=180, scrolling=False)
+
+        # Hidden bridge: JS in the iframe writes into this input's value
+        # using its placeholder as a selector key (__STT_BRIDGE__)
+        stt_bridge = st.text_input(
+            "stt_bridge",
+            key="stt_bridge_widget",
+            label_visibility="collapsed",
+            placeholder="__STT_BRIDGE__",
+        )
+
+        # Sync bridge → session state so the textarea below stays updated
+        if stt_bridge != st.session_state.get("stt_text", ""):
+            st.session_state.stt_text = stt_bridge
+
+        st.markdown("---")
+        st.markdown("##### ✏️ Review & Send")
+
+        with st.form("msg_form", clear_on_submit=True):
+            user_input = st.text_area(
+                "Message",
+                value=st.session_state.stt_text,
+                placeholder="Voice text appears here automatically. You can also type directly.",
+                label_visibility="collapsed",
+                height=100,
+                disabled=not api_key,
+            )
+            c1, c2 = st.columns([1, 3])
+            with c1:
+                send_btn = st.form_submit_button(
+                    "📡 Send to Agent",
+                    disabled=not api_key,
+                    use_container_width=True,
+                )
+            with c2:
+                st.markdown(
+                    "<small style='color:#1e3a5a;'>Stop mic first, edit if needed, then Send.</small>",
+                    unsafe_allow_html=True,
+                )
+
+        if send_btn and user_input.strip() and api_key:
+            st.session_state.stt_text = ""
+            user_text   = user_input.strip()
             context_msg = (
                 f"[incident_id={st.session_state.incident_id}] "
                 f"[time={datetime.now(timezone.utc).isoformat()}]\n"
@@ -376,8 +551,6 @@ with chat_col:
                 is_question = False
                 st.session_state.completed = True
                 st.session_state.log.append(response)
-
-                st.session_state.shared_incident_json = json.dumps(response, indent=2)
             else:
                 agent_text  = response.get("question", "Can you provide more details?")
                 is_question = True
@@ -385,6 +558,7 @@ with chat_col:
             st.session_state.history.append({"role": "user",  "text": user_text})
             st.session_state.history.append({"role": "agent", "text": agent_text, "is_question": is_question})
             st.rerun()
+
     else:
         if st.session_state.incident:
             st.download_button(
@@ -394,9 +568,6 @@ with chat_col:
                 mime="application/json",
             )
 
-            if st.button("➡️ Proceed to Triage Agent", use_container_width=True):
-                st.switch_page("triage_agent.py")
-
 # ══ RIGHT: Live JSON ══
 with json_col:
     st.markdown("### 📄 Live Incident JSON")
@@ -405,28 +576,21 @@ with json_col:
     if inc is None:
         st.markdown("""
         <div style="
-            color:#2a3d5a;
-            font-family:'Share Tech Mono',monospace;
-            padding:30px 20px;
-            border:1px dashed #1a2d4a;
-            border-radius:8px;
-            font-size:0.82rem;
-            text-align:center;
-            margin-top:10px;
-            line-height:2;
+            color:#2a3d5a; font-family:'Share Tech Mono',monospace;
+            padding:30px 20px; border:1px dashed #1a2d4a;
+            border-radius:8px; font-size:0.82rem; text-align:center;
+            margin-top:10px; line-height:2;
         ">
         { }<br><span style="font-size:0.72rem">Waiting for first message…</span>
         </div>
         """, unsafe_allow_html=True)
     else:
-        # Strip internal/display-only fields before showing
         display_inc = {k: v for k, v in inc.items() if k != "fields_collected"}
         st.code(json.dumps(display_inc, indent=2), language="json")
 
         if inc.get("status") == "complete":
             st.success("✅ Report complete")
         else:
-            # Rough progress
             checks = [
                 inc.get("incident_type"),
                 inc.get("severity"),
