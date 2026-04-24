@@ -27,6 +27,7 @@ import json
 import re
 import os
 import uuid
+import requests
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -38,6 +39,12 @@ try:
     GENAI_AVAILABLE = True
 except ImportError:
     GENAI_AVAILABLE = False
+
+try:
+    from google.cloud import firestore
+    FIRESTORE_AVAILABLE = True
+except ImportError:
+    FIRESTORE_AVAILABLE = False
 
 # ─── Page Config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -92,6 +99,16 @@ h1, h2, h3 {
     font-size: 0.9rem;
     color: #a8c8f0;
     line-height: 1.7;
+}
+.authority-card {
+    background: #0e1f2e;
+    border-left: 4px solid #00d4ff;
+    border-radius: 4px 8px 8px 4px;
+    padding: 14px 16px;
+    margin: 10px 0;
+    color: #b8d4e8;
+    font-size: 0.9rem;
+    line-height: 1.8;
 }
 .alert-banner {
     background: linear-gradient(135deg, #1a0a00, #2a1000);
@@ -383,6 +400,80 @@ if "triage_result" not in st.session_state:
     st.session_state.triage_result = None
 if "triage_log" not in st.session_state:
     st.session_state.triage_log = []
+if "map_agent_routing" not in st.session_state:
+    st.session_state.map_agent_routing = None
+if "map_agent_loading" not in st.session_state:
+    st.session_state.map_agent_loading = False
+
+# ─── Firestore & Map Agent Integration ─────────────────────────────────────────
+
+@st.cache_resource
+def get_firestore_client():
+    """Initialize Firestore client (cached)."""
+    if FIRESTORE_AVAILABLE:
+        try:
+            return firestore.Client()
+        except Exception as e:
+            st.warning(f"Firestore not available: {e}")
+            return None
+    return None
+
+
+def send_to_map_agent(triage_result):
+    """Send triaged incident to Map Agent backend for authority routing."""
+    try:
+        incident_id = triage_result.get("triage_id", "unknown")
+
+        # ✅ Extract from triage
+        comms = triage_result.get("comms_payload", {})
+        location = comms.get("affected_area")
+        services = comms.get("required_services", [])
+
+        # ❌ validate
+        if not location or not services:
+            return False, "Invalid triage payload"
+
+        # ✅ CORRECT payload (matches backend)
+        routing_payload = {
+            "payload": {
+                "affected_area": location,
+                "required_services": services
+            }
+        }
+
+        # ✅ DIRECT call (no wrapping)
+        response = requests.post(
+            "http://localhost:8081/map",
+            json=routing_payload,
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return True, response.json()
+        else:
+            return False, response.text
+
+    except requests.exceptions.ConnectionError:
+        st.warning("⚠️ Map Agent backend not running on port 8081. Make sure it's running!")
+        return False, "Connection failed"
+
+    except Exception as e:
+        return False, str(e)
+    
+def get_routing_from_firestore(incident_id):
+    """Query Firestore for routing results."""
+    db = get_firestore_client()
+    if not db:
+        return None
+    
+    try:
+        doc = db.collection("incident_routing").document(f"{incident_id}-routing").get()
+        if doc.exists:
+            return doc.to_dict()
+        return None
+    except Exception as e:
+        st.error(f"Error querying Firestore: {e}")
+        return None
 
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -528,10 +619,23 @@ with input_col:
             mime="application/json",
         )
 
-        st.session_state.shared_triage_json = json.dumps(st.session_state.triage_result, indent=2)
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("➡️ Approve & Send to Comms Agent", use_container_width=True):
-            st.switch_page("comm_agent.py")
+        
+        # Map Agent button
+        col_map, col_comms = st.columns(2)
+        with col_map:
+            if st.button("🗺️ Send to Map Agent", use_container_width=True):
+                with st.spinner("🗺️ Routing to emergency authorities…"):
+                    success, response = send_to_map_agent(st.session_state.triage_result)
+                    if success:
+                        st.success("✅ Sent to Map Agent! Data is ready. Navigate to the Map Agent page to view.")
+                        st.balloons()
+                    else:
+                        st.error(f"❌ Failed to send to Map Agent: {response}")
+        
+        with col_comms:
+            if st.button("➡️ Send to Comms Agent", use_container_width=True):
+                st.switch_page("comm_agent.py")
 
 # ── RIGHT: Output ──
 with output_col:
@@ -592,9 +696,24 @@ with output_col:
             )
 
         # ── Tabs for structured view ──
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(
-            ["📋 Classification", "📜 Action Plan & SOP", "📡 Routing", "📣 Comms Payload", "🗂 Raw JSON"]
-        )
+        tabs = ["📋 Classification", "📜 Action Plan & SOP", "📡 Routing", "📣 Comms Payload", "🗂 Raw JSON"]
+        if st.session_state.map_agent_routing:
+            tabs.insert(3, "🚨 Alerted Authorities")
+        
+        tab_objects = st.tabs(tabs)
+        tab1 = tab_objects[0]
+        tab2 = tab_objects[1]
+        tab3 = tab_objects[2]
+        
+        # Insert authorities tab if routing available
+        if st.session_state.map_agent_routing:
+            tab_auth = tab_objects[3]
+            tab4 = tab_objects[4]
+            tab5 = tab_objects[5]
+        else:
+            tab_auth = None
+            tab4 = tab_objects[3]
+            tab5 = tab_objects[4]
 
         with tab1:
             status_badge_html = (
@@ -658,6 +777,53 @@ with output_col:
                 st.markdown(f"**On-scene commander:** {cp['on_scene_commander']}")
             if cp.get("staging_area"):
                 st.markdown(f"**Staging area:** {cp['staging_area']}")
+
+        # Alerted Authorities Tab (if available)
+        if tab_auth and st.session_state.map_agent_routing:
+            with tab_auth:
+                routing = st.session_state.map_agent_routing
+                primary_auth = routing.get("primary_authority", {})
+                secondary_auths = routing.get("secondary_authorities", [])
+                
+                if primary_auth:
+                    st.markdown("### 🚔 Primary Authority (First Response)")
+                    st.markdown(f"""
+                    <div class="authority-card">
+                    <b>📍 {primary_auth.get('name', 'Unknown')}</b><br>
+                    <b>Type:</b> {primary_auth.get('type', 'N/A').upper()}<br>
+                    <b>Distance:</b> {primary_auth.get('distance_km', 'N/A')} km<br>
+                    <b>Travel Time:</b> {primary_auth.get('travel_time_minutes', 'N/A')} minutes<br>
+                    <b>Response Time:</b> {primary_auth.get('estimated_response_minutes', 'N/A')} minutes<br>
+                    <b>Phone:</b> {primary_auth.get('phone', 'N/A')}<br>
+                    <b>Address:</b> {primary_auth.get('address', 'N/A')}<br>
+                    <small>Data Source: {primary_auth.get('data_source', 'N/A')}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                if secondary_auths:
+                    st.markdown("### 🚑 Secondary Authorities (Backup)")
+                    for i, auth in enumerate(secondary_auths[:3], 1):
+                        st.markdown(f"""
+                        <div class="authority-card">
+                        <b>#{i} 📍 {auth.get('name', 'Unknown')}</b><br>
+                        <b>Type:</b> {auth.get('type', 'N/A').upper()}<br>
+                        <b>Distance:</b> {auth.get('distance_km', 'N/A')} km<br>
+                        <b>Travel Time:</b> {auth.get('travel_time_minutes', 'N/A')} minutes<br>
+                        <b>Response Time:</b> {auth.get('estimated_response_minutes', 'N/A')} minutes<br>
+                        <b>Phone:</b> {auth.get('phone', 'N/A')}<br>
+                        <b>Address:</b> {auth.get('address', 'N/A')}
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                # Summary
+                st.divider()
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Authorities Alerted", routing.get("total_authorities_alerted", "N/A"))
+                with col2:
+                    st.metric("Incident Priority", routing.get("priority", "N/A"))
+                with col3:
+                    st.metric("Disaster Category", routing.get("disaster_category", "N/A").upper())
 
         with tab4:
             cp = result.get("comms_payload") or {}
