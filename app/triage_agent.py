@@ -459,21 +459,6 @@ def send_to_map_agent(triage_result):
 
     except Exception as e:
         return False, str(e)
-    
-def get_routing_from_firestore(incident_id):
-    """Query Firestore for routing results."""
-    db = get_firestore_client()
-    if not db:
-        return None
-    
-    try:
-        doc = db.collection("incident_routing").document(f"{incident_id}-routing").get()
-        if doc.exists:
-            return doc.to_dict()
-        return None
-    except Exception as e:
-        st.error(f"Error querying Firestore: {e}")
-        return None
 
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -538,6 +523,7 @@ st.markdown("---")
 
 input_col, output_col = st.columns([2, 3], gap="large")
 incoming_data = st.session_state.get("shared_incident_json", SAMPLE_INCIDENT)
+
 # ── LEFT: Input ──
 with input_col:
     st.markdown("### 📥 Incident JSON Input")
@@ -612,6 +598,7 @@ with input_col:
     # Download completed triage
     if st.session_state.triage_result:
         tid = st.session_state.triage_result.get("triage_id", "triage")[:8]
+        
         st.download_button(
             "⬇️ Download Triage JSON",
             data=json.dumps(st.session_state.triage_result, indent=2),
@@ -621,20 +608,29 @@ with input_col:
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Map Agent button
+        # Two action buttons
         col_map, col_comms = st.columns(2)
+        
         with col_map:
             if st.button("🗺️ Send to Map Agent", use_container_width=True):
-                with st.spinner("🗺️ Routing to emergency authorities…"):
-                    success, response = send_to_map_agent(st.session_state.triage_result)
-                    if success:
-                        st.success("✅ Sent to Map Agent! Data is ready. Navigate to the Map Agent page to view.")
-                        st.balloons()
-                    else:
-                        st.error(f"❌ Failed to send to Map Agent: {response}")
+                # Store triage result for map agent
+                st.session_state.shared_triage_json = json.dumps(
+                    st.session_state.triage_result, indent=2
+                )
+                st.success("✅ Triage data transferred to Map Agent!")
+                st.balloons()
+                # Navigate to map agent page
+                st.switch_page("map_agent.py")
         
         with col_comms:
-            if st.button("➡️ Send to Comms Agent", use_container_width=True):
+            if st.button("📡 Send to Comms Agent", use_container_width=True):
+                # Store triage result for comms agent
+                st.session_state.shared_triage_json = json.dumps(
+                    st.session_state.triage_result, indent=2
+                )
+                st.success("✅ Triage data transferred to Comms Agent!")
+                st.balloons()
+                # Navigate to comms agent page
                 st.switch_page("comm_agent.py")
 
 # ── RIGHT: Output ──
@@ -697,25 +693,9 @@ with output_col:
 
         # ── Tabs for structured view ──
         tabs = ["📋 Classification", "📜 Action Plan & SOP", "📡 Routing", "📣 Comms Payload", "🗂 Raw JSON"]
-        if st.session_state.map_agent_routing:
-            tabs.insert(3, "🚨 Alerted Authorities")
-        
         tab_objects = st.tabs(tabs)
-        tab1 = tab_objects[0]
-        tab2 = tab_objects[1]
-        tab3 = tab_objects[2]
-        
-        # Insert authorities tab if routing available
-        if st.session_state.map_agent_routing:
-            tab_auth = tab_objects[3]
-            tab4 = tab_objects[4]
-            tab5 = tab_objects[5]
-        else:
-            tab_auth = None
-            tab4 = tab_objects[3]
-            tab5 = tab_objects[4]
 
-        with tab1:
+        with tab_objects[0]:
             status_badge_html = (
                 '<span style="color:#f0a500;font-size:0.8rem"> ⚠ INCOMPLETE</span>'
                 if intake_status == "incomplete"
@@ -740,7 +720,7 @@ with output_col:
                 </div>
                 """, unsafe_allow_html=True)
 
-        with tab2:
+        with tab_objects[1]:
             steps = result.get("action_plan") or []
             sops  = result.get("sop_references") or []
             plan_html = "<br>".join(f"<b>{i+1}.</b> {s}" for i, s in enumerate(steps)) or "—"
@@ -752,7 +732,7 @@ with output_col:
             </div>
             """, unsafe_allow_html=True)
 
-        with tab3:
+        with tab_objects[2]:
             r = result.get("routing") or {}
             active_agents = []
             if r.get("response_agent"):     active_agents.append("✅ Response Agent — Action plan + SOP")
@@ -778,54 +758,7 @@ with output_col:
             if cp.get("staging_area"):
                 st.markdown(f"**Staging area:** {cp['staging_area']}")
 
-        # Alerted Authorities Tab (if available)
-        if tab_auth and st.session_state.map_agent_routing:
-            with tab_auth:
-                routing = st.session_state.map_agent_routing
-                primary_auth = routing.get("primary_authority", {})
-                secondary_auths = routing.get("secondary_authorities", [])
-                
-                if primary_auth:
-                    st.markdown("### 🚔 Primary Authority (First Response)")
-                    st.markdown(f"""
-                    <div class="authority-card">
-                    <b>📍 {primary_auth.get('name', 'Unknown')}</b><br>
-                    <b>Type:</b> {primary_auth.get('type', 'N/A').upper()}<br>
-                    <b>Distance:</b> {primary_auth.get('distance_km', 'N/A')} km<br>
-                    <b>Travel Time:</b> {primary_auth.get('travel_time_minutes', 'N/A')} minutes<br>
-                    <b>Response Time:</b> {primary_auth.get('estimated_response_minutes', 'N/A')} minutes<br>
-                    <b>Phone:</b> {primary_auth.get('phone', 'N/A')}<br>
-                    <b>Address:</b> {primary_auth.get('address', 'N/A')}<br>
-                    <small>Data Source: {primary_auth.get('data_source', 'N/A')}</small>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                if secondary_auths:
-                    st.markdown("### 🚑 Secondary Authorities (Backup)")
-                    for i, auth in enumerate(secondary_auths[:3], 1):
-                        st.markdown(f"""
-                        <div class="authority-card">
-                        <b>#{i} 📍 {auth.get('name', 'Unknown')}</b><br>
-                        <b>Type:</b> {auth.get('type', 'N/A').upper()}<br>
-                        <b>Distance:</b> {auth.get('distance_km', 'N/A')} km<br>
-                        <b>Travel Time:</b> {auth.get('travel_time_minutes', 'N/A')} minutes<br>
-                        <b>Response Time:</b> {auth.get('estimated_response_minutes', 'N/A')} minutes<br>
-                        <b>Phone:</b> {auth.get('phone', 'N/A')}<br>
-                        <b>Address:</b> {auth.get('address', 'N/A')}
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                # Summary
-                st.divider()
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Total Authorities Alerted", routing.get("total_authorities_alerted", "N/A"))
-                with col2:
-                    st.metric("Incident Priority", routing.get("priority", "N/A"))
-                with col3:
-                    st.metric("Disaster Category", routing.get("disaster_category", "N/A").upper())
-
-        with tab4:
+        with tab_objects[3]:
             cp = result.get("comms_payload") or {}
             al = cp.get("alert_level", "")
             color_map = {"black": "#ff2b2b", "red": "#ff6060", "amber": "#f0a500", "green": "#2ecc71"}
@@ -840,5 +773,5 @@ with output_col:
             </div>
             """, unsafe_allow_html=True)
 
-        with tab5:
+        with tab_objects[4]:
             st.code(json.dumps(result, indent=2), language="json")

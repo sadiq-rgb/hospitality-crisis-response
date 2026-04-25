@@ -173,6 +173,7 @@ def call_gemini(api_key: str, gemini_history: list, new_message: str) -> dict:
     genai.configure(api_key=api_key)
     # Try modern model names in order, fall back gracefully
     for model_name in [
+        "gemini-3.1-flash-lite-preview",
         "gemini-2.5-flash-preview-04-17",
         "gemini-2.0-flash",
         "gemini-1.5-flash",
@@ -560,13 +561,29 @@ with chat_col:
             st.rerun()
 
     else:
-        if st.session_state.incident:
-            st.download_button(
-                "⬇️ Download Incident JSON",
-                data=json.dumps(st.session_state.incident, indent=2),
-                file_name=f"incident_{st.session_state.incident_id[:8]}.json",
-                mime="application/json",
-            )
+        # ── Download and Send to Triage ────────────────────────────────────
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.session_state.incident:
+                st.download_button(
+                    "⬇️ Download Incident JSON",
+                    data=json.dumps(st.session_state.incident, indent=2),
+                    file_name=f"incident_{st.session_state.incident_id[:8]}.json",
+                    mime="application/json",
+                )
+        
+        with col2:
+            if st.session_state.incident:
+                if st.button("🧠 Send to Triage Agent", use_container_width=True):
+                    # Store the incident JSON in session state for the triage page
+                    st.session_state.shared_incident_json = json.dumps(
+                        st.session_state.incident, indent=2
+                    )
+                    st.success("✅ Incident data transferred! Navigating to Triage Agent...")
+                    st.balloons()
+                    # Navigate to triage page
+                    st.switch_page("triage_agent.py")
 
 # ══ RIGHT: Live JSON ══
 with json_col:
