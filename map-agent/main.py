@@ -2,7 +2,10 @@ from flask import Flask, request, jsonify
 import googlemaps
 import os
 import vertexai
+from dotenv import load_dotenv
 from vertexai.generative_models import GenerativeModel
+
+load_dotenv()
 
 app = Flask(__name__)
 
